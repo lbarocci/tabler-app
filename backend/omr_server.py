@@ -17,10 +17,11 @@ app = Flask(__name__)
 AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
 
 
-def run_audiveris(image_path: str, output_dir: str) -> str | None:
-    """Run Audiveris CLI on image; return path to generated MusicXML file or None."""
+def run_audiveris(image_path: str, output_dir: str):
+    # Returns (path to MusicXML or None, error note for client)
+    """Run Audiveris CLI on image; return (path to MusicXML or None, error note for client)."""
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 AUDIVERIS_CMD,
                 "-batch",
@@ -32,18 +33,25 @@ def run_audiveris(image_path: str, output_dir: str) -> str | None:
             check=True,
             capture_output=True,
             timeout=120,
+            text=True,
         )
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
-        print("Audiveris error:", e)
-        return None
+    except FileNotFoundError:
+        return None, "Audiveris non trovato (comando non in PATH)."
+    except subprocess.TimeoutExpired:
+        return None, "Audiveris in timeout dopo 120 secondi."
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or e.stdout or str(e))[:500]
+        return None, f"Audiveris errore: {err}"
+    except Exception as e:
+        return None, f"Errore: {e!s}"
 
     # Audiveris writes .mxl or .xml in output_dir (same base name as input)
     base = Path(image_path).stem
     for ext in (".mxl", ".xml"):
         candidate = Path(output_dir) / (base + ext)
         if candidate.exists():
-            return str(candidate)
-    return None
+            return str(candidate), ""
+    return None, "Audiveris non ha prodotto file MusicXML."
 
 
 @app.route("/omr", methods=["POST"])
@@ -55,19 +63,22 @@ def omr():
         return jsonify({"error": "No file selected"}), 400
 
     with tempfile.TemporaryDirectory() as tmp:
-        image_path = os.path.join(tmp, "input.png")
+        # Preserve extension (PDF, JPG, PNG) so Audiveris gets the right format
+        ext = os.path.splitext(file.filename or "")[1] or ".png"
+        if ext.lower() not in (".pdf", ".jpg", ".jpeg", ".png"):
+            ext = ".png"
+        image_path = os.path.join(tmp, "input" + ext)
         file.save(image_path)
         output_dir = tmp
-        music_xml_path = run_audiveris(image_path, output_dir)
+        music_xml_path, error_note = run_audiveris(image_path, output_dir)
 
         if music_xml_path and os.path.exists(music_xml_path):
             with open(music_xml_path, encoding="utf-8", errors="replace") as f:
                 music_xml = f.read()
             return jsonify({"musicXml": music_xml})
         else:
-            # Audiveris not available or failed: return placeholder so app can show "result"
-            placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile: installa Audiveris e avvia il server con AUDIVERIS_CMD impostato -->\n<placeholder/>'
-            return jsonify({"musicXml": placeholder, "note": "Audiveris non eseguito (non in PATH o errore). Installa Audiveris e imposta AUDIVERIS_CMD."})
+            placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
+            return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
 
 
 @app.route("/health")

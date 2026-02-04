@@ -31,9 +31,10 @@ ARG AUDIVERIS_DEB=Audiveris-${AUDIVERIS_VERSION}-ubuntu22.04-x86_64.deb
 RUN wget -q "https://github.com/Audiveris/audiveris/releases/download/${AUDIVERIS_VERSION}/${AUDIVERIS_DEB}" -O /tmp/audiveris.deb \
     && dpkg -x /tmp/audiveris.deb /tmp/audiveris-extract \
     && cp -r /tmp/audiveris-extract/* / \
+    && ( A="$(find /usr /opt -type f \( -name 'audiveris' -o -name 'Audiveris' \) 2>/dev/null | head -1)"; [ -n "$A" ] && ln -sf "$A" /usr/local/bin/audiveris; ) \
     && rm -rf /tmp/audiveris.deb /tmp/audiveris-extract
 
-ENV AUDIVERIS_CMD=audiveris
+ENV AUDIVERIS_CMD=/usr/local/bin/audiveris
 
 WORKDIR /app
 
