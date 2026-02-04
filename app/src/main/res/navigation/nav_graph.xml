@@ -15,6 +15,35 @@
             android:id="@+id/action_FirstFragment_to_SecondFragment"
             app:destination="@id/SecondFragment" />
     </fragment>
+
+    <fragment
+        android:id="@+id/aggiungiSpartitoFragment"
+        android:name="com.example.tabler.AggiungiSpartitoFragment"
+        android:label="@string/aggiungi_title"
+        tools:layout="@layout/fragment_aggiungi_spartito" />
+
+    <fragment
+        android:id="@+id/anteprimaImmagineFragment"
+        android:name="com.example.tabler.AnteprimaImmagineFragment"
+        android:label="@string/anteprima_title"
+        tools:layout="@layout/fragment_anteprima_immagine">
+        <argument
+            android:name="imageUri"
+            app:argType="string"
+            android:defaultValue="@null" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/risultatoOmrFragment"
+        android:name="com.example.tabler.RisultatoOmrFragment"
+        android:label="@string/risultato_omr_title"
+        tools:layout="@layout/fragment_risultato_omr">
+        <argument
+            android:name="imageUri"
+            app:argType="string"
+            android:defaultValue="@null" />
+    </fragment>
+
     <fragment
         android:id="@+id/SecondFragment"
         android:name="com.example.tabler.SecondFragment"

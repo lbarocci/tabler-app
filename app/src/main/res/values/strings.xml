@@ -1,8 +1,22 @@
 <resources>
     <string name="app_name">Tabler</string>
     <string name="action_settings">Settings</string>
+    <!-- Home -->
+    <string name="home_title">Spartiti e tablature</string>
+    <string name="home_empty">Nessuno spartito. Aggiungine uno con il pulsante +.</string>
+    <!-- Add / Camera / Gallery -->
+    <string name="aggiungi_title">Aggiungi spartito</string>
+    <string name="scatta_foto">Scatta foto</string>
+    <string name="scegli_galleria">Scegli da galleria</string>
+    <!-- Preview -->
+    <string name="anteprima_title">Anteprima</string>
+    <string name="riconosci_omr">Riconosci con OMR</string>
+    <!-- OMR Result -->
+    <string name="risultato_omr_title">Risultato OMR</string>
+    <string name="riconoscimento_completato">Riconoscimento completato</string>
+    <string name="riconoscimento_fallito">Riconoscimento non riuscito</string>
     <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
+    <string name="first_fragment_label">Spartiti</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>

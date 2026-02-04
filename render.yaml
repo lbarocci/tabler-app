@@ -1,0 +1,10 @@
+# Render Blueprint: backend OMR (Docker)
+# Su render.com: New -> Blueprint -> collega il repo e seleziona questo file.
+
+services:
+  - type: web
+    name: tabler-omr
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    port: 8080
