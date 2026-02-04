@@ -5,7 +5,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Dipendenze di sistema: Java (per Audiveris), Python, wget
+# Dipendenze di sistema: Java (per Audiveris), Python, wget, X11 libs (richieste da Audiveris)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jre-headless \
     wget \
@@ -13,21 +13,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libxi6 \
+    libxtst6 \
+    libxcb1 \
+    libxdmcp6 \
+    libxau6 \
+    xdg-utils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Download e installazione Audiveris (.deb per Ubuntu 22.04)
-# URL da https://github.com/Audiveris/audiveris/releases
+# Download Audiveris .deb e estrazione senza script post-install (evita xdg-desktop-menu in container)
 ARG AUDIVERIS_VERSION=5.9.0
 ARG AUDIVERIS_DEB=Audiveris-${AUDIVERIS_VERSION}-ubuntu22.04-x86_64.deb
 RUN wget -q "https://github.com/Audiveris/audiveris/releases/download/${AUDIVERIS_VERSION}/${AUDIVERIS_DEB}" -O /tmp/audiveris.deb \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends /tmp/audiveris.deb || apt-get install -f -y \
-    && rm /tmp/audiveris.deb \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && dpkg -x /tmp/audiveris.deb /tmp/audiveris-extract \
+    && cp -r /tmp/audiveris-extract/* / \
+    && rm -rf /tmp/audiveris.deb /tmp/audiveris-extract
 
-# L'eseguibile Audiveris è in PATH dopo l'installazione del .deb
 ENV AUDIVERIS_CMD=audiveris
 
 WORKDIR /app
