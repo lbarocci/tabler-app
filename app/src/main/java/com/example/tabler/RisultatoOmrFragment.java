@@ -14,6 +14,7 @@ import com.example.tabler.databinding.FragmentRisultatoOmrBinding;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -33,7 +34,11 @@ public class RisultatoOmrFragment extends Fragment {
     private static final String OMR_BASE_URL = "https://tabler-omr.onrender.com";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final OkHttpClient client = new OkHttpClient.Builder().build();
+    private final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build();
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -64,12 +69,13 @@ public class RisultatoOmrFragment extends Fragment {
         executor.execute(() -> {
             try {
                 Uri uri = Uri.parse(imageUriString);
+                String mimeType = requireContext().getContentResolver().getType(uri);
                 byte[] imageBytes = readUriToBytes(uri);
                 if (imageBytes == null || imageBytes.length == 0) {
-                    runOnUiThread(() -> showResult(getString(R.string.riconoscimento_fallito) + " (impossibile leggere immagine)"));
+                    runOnUiThread(() -> showResult(getString(R.string.riconoscimento_fallito) + " (impossibile leggere file)"));
                     return;
                 }
-                String result = callOmrBackend(imageBytes);
+                String result = callOmrBackend(imageBytes, mimeType);
                 runOnUiThread(() -> showResult(result));
             } catch (Exception e) {
                 runOnUiThread(() -> showResult(getString(R.string.riconoscimento_fallito) + "\n\n" + e.getMessage()));
@@ -90,11 +96,13 @@ public class RisultatoOmrFragment extends Fragment {
         }
     }
 
-    private String callOmrBackend(byte[] imageBytes) {
+    private String callOmrBackend(byte[] imageBytes, String mimeType) {
+        String filename = "application/pdf".equals(mimeType) ? "spartito.pdf" : "spartito.jpg";
+        MediaType mediaType = (mimeType != null && !mimeType.isEmpty())
+                ? MediaType.parse(mimeType) : MediaType.parse("image/jpeg");
         RequestBody body = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("image", "spartito.jpg",
-                        RequestBody.create(MediaType.parse("image/jpeg"), imageBytes))
+                .addFormDataPart("image", filename, RequestBody.create(mediaType, imageBytes))
                 .build();
         Request request = new Request.Builder()
                 .url(OMR_BASE_URL + "/omr")
@@ -102,11 +110,18 @@ public class RisultatoOmrFragment extends Fragment {
                 .build();
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                return getString(R.string.riconoscimento_fallito) + " (HTTP " + response.code() + ")\n\n" +
-                        (response.body() != null ? response.body().string() : "");
+                String body = response.body() != null ? response.body().string() : "";
+                if (response.code() == 413 && body.contains("\"note\"")) {
+                    String note = extractJsonNote(body);
+                    if (note != null && !note.isEmpty()) {
+                        return getString(R.string.riconoscimento_fallito) + "\n\nFile troppo grande.\n\n" + note;
+                    }
+                }
+                return getString(R.string.riconoscimento_fallito) + " (HTTP " + response.code() + ")\n\n" + body;
             }
             if (response.body() == null) return getString(R.string.riconoscimento_completato);
             String bodyStr = response.body().string();
+            String originalResponse = bodyStr;
             if (bodyStr.trim().startsWith("{")) {
                 // JSON: e.g. {"musicXml": "..."} or {"error": "..."}
                 if (bodyStr.contains("\"musicXml\"")) {
@@ -116,6 +131,14 @@ public class RisultatoOmrFragment extends Fragment {
                     int quoteEnd = bodyStr.indexOf("\"", quoteStart);
                     if (quoteEnd > quoteStart) {
                         bodyStr = bodyStr.substring(quoteStart, quoteEnd).replace("\\n", "\n").replace("\\\"", "\"");
+                        if (isPlaceholderResponse(bodyStr)) {
+                            String backendNote = extractJsonNote(originalResponse);
+                            String msg = getString(R.string.riconoscimento_fallito) + "\n\n" + getString(R.string.omr_nessun_risultato);
+                            if (backendNote != null && !backendNote.isEmpty()) {
+                                msg += "\n\nDettaglio server: " + backendNote;
+                            }
+                            return msg;
+                        }
                     }
                 } else if (bodyStr.contains("\"error\"")) {
                     return getString(R.string.riconoscimento_fallito) + "\n\n" + bodyStr;
@@ -132,6 +155,26 @@ public class RisultatoOmrFragment extends Fragment {
         if (getActivity() != null) {
             getActivity().runOnUiThread(r);
         }
+    }
+
+    /** True if the backend returned the placeholder (no real OMR result). */
+    private boolean isPlaceholderResponse(String bodyStr) {
+        if (bodyStr == null) return true;
+        return bodyStr.contains("OMR non disponibile")
+                || bodyStr.contains("<placeholder/>")
+                || (bodyStr.length() < 100 && bodyStr.contains("<?xml"));
+    }
+
+    /** Extract the "note" field from JSON response, if present (backend explanation when OMR fails). */
+    private String extractJsonNote(String json) {
+        if (json == null || !json.contains("\"note\"")) return null;
+        int start = json.indexOf("\"note\"");
+        int valueStart = json.indexOf(":", start) + 1;
+        int quoteStart = json.indexOf("\"", valueStart) + 1;
+        if (quoteStart <= valueStart) return null;
+        int quoteEnd = json.indexOf("\"", quoteStart);
+        if (quoteEnd <= quoteStart) return null;
+        return json.substring(quoteStart, quoteEnd).replace("\\n", "\n").replace("\\\"", "\"");
     }
 
     private void showResult(String text) {

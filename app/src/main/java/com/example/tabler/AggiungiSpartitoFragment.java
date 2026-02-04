@@ -1,6 +1,8 @@
 package com.example.tabler;
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -42,10 +44,10 @@ public class AggiungiSpartitoFragment extends Fragment {
                 }
             });
 
-    private final ActivityResultLauncher<String> getContentLauncher =
-            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
-                if (uri != null) {
-                    navigateToAnteprima(uri.toString());
+    private final ActivityResultLauncher<Intent> pickFileLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
+                    navigateToAnteprima(result.getData().getData().toString());
                 }
             });
 
@@ -86,7 +88,11 @@ public class AggiungiSpartitoFragment extends Fragment {
     }
 
     private void launchGallery() {
-        getContentLauncher.launch("image/*");
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "application/pdf"});
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        pickFileLauncher.launch(Intent.createChooser(intent, getString(R.string.scegli_immagine_o_pdf)));
     }
 
     private void navigateToAnteprima(String imageUriString) {

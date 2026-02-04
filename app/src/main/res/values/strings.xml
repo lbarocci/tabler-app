@@ -8,6 +8,7 @@
     <string name="aggiungi_title">Aggiungi spartito</string>
     <string name="scatta_foto">Scatta foto</string>
     <string name="scegli_galleria">Scegli da galleria</string>
+    <string name="scegli_immagine_o_pdf">Scegli immagine o PDF</string>
     <!-- Preview -->
     <string name="anteprima_title">Anteprima</string>
     <string name="riconosci_omr">Riconosci con OMR</string>
@@ -15,6 +16,7 @@
     <string name="risultato_omr_title">Risultato OMR</string>
     <string name="riconoscimento_completato">Riconoscimento completato</string>
     <string name="riconoscimento_fallito">Riconoscimento non riuscito</string>
+    <string name="omr_nessun_risultato">Il server non ha riconosciuto lo spartito. Prova con un\'immagine più nitida o con una foto di solo spartito.</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">Spartiti</string>
     <string name="second_fragment_label">Second Fragment</string>

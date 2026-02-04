@@ -10,16 +10,24 @@ import tempfile
 from pathlib import Path
 
 from flask import Flask, request, jsonify
+from werkzeug.exceptions import RequestEntityTooLarge
 
 app = Flask(__name__)
 
+# Limite upload 4 MB per evitare di superare la RAM del server (es. Render free tier)
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
 # Set to Audiveris executable path if not in PATH, or None to use "audiveris"
 AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
+# Heap JVM per Audiveris (override da env se serve, altrimenti limite sicuro per 512MB RAM)
+JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx256m -XX:+UseSerialGC")
 
 
 def run_audiveris(image_path: str, output_dir: str):
     # Returns (path to MusicXML or None, error note for client)
     """Run Audiveris CLI on image; return (path to MusicXML or None, error note for client)."""
+    env = {**os.environ, "JAVA_TOOL_OPTIONS": JAVA_OPTS}
     try:
         result = subprocess.run(
             [
@@ -30,6 +38,7 @@ def run_audiveris(image_path: str, output_dir: str):
                 "-output", output_dir,
                 image_path,
             ],
+            env=env,
             check=True,
             capture_output=True,
             timeout=120,
@@ -79,6 +88,14 @@ def omr():
         else:
             placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
             return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_too_large(e):
+    return jsonify({
+        "error": "File troppo grande.",
+        "note": f"Dimensioni massime: {MAX_UPLOAD_BYTES // (1024*1024)} MB. Riduci l'immagine o il PDF e riprova.",
+    }), 413
 
 
 @app.route("/health")
