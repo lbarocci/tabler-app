@@ -36,7 +36,7 @@ RUN wget -q "https://github.com/Audiveris/audiveris/releases/download/${AUDIVERI
 
 ENV AUDIVERIS_CMD=/usr/local/bin/audiveris
 # Limita heap JVM per Audiveris (evita "exceeded memory limit" su piani con poca RAM)
-ENV JAVA_TOOL_OPTIONS="-Xmx256m -XX:+UseSerialGC"
+ENV JAVA_TOOL_OPTIONS="-Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m"
 
 WORKDIR /app
 

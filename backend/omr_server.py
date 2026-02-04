@@ -21,7 +21,7 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 # Set to Audiveris executable path if not in PATH, or None to use "audiveris"
 AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
 # Heap JVM per Audiveris (override da env se serve, altrimenti limite sicuro per 512MB RAM)
-JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx256m -XX:+UseSerialGC")
+JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m")
 
 
 def run_audiveris(image_path: str, output_dir: str):
