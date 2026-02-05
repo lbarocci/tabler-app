@@ -24,10 +24,27 @@ AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
 JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m")
 
 
+def _find_music_xml(output_dir: str, base: str) -> str | None:
+    """Cerca .mxl o .xml in output_dir e nelle sottocartelle (Audiveris crea book folder)."""
+    out = Path(output_dir)
+    # Prima: stesso livello (input.mxl)
+    for ext in (".mxl", ".xml"):
+        candidate = out / (base + ext)
+        if candidate.exists():
+            return str(candidate)
+    # Poi: ricorsivo (es. output_dir/input/input.mxl per PDF/libri)
+    for ext in (".mxl", ".xml"):
+        for path in out.rglob("*" + ext):
+            if path.is_file():
+                return str(path)
+    return None
+
+
 def run_audiveris(image_path: str, output_dir: str):
     # Returns (path to MusicXML or None, error note for client)
     """Run Audiveris CLI on image; return (path to MusicXML or None, error note for client)."""
     env = {**os.environ, "JAVA_TOOL_OPTIONS": JAVA_OPTS}
+    stderr_out = ""
     try:
         result = subprocess.run(
             [
@@ -44,6 +61,7 @@ def run_audiveris(image_path: str, output_dir: str):
             timeout=120,
             text=True,
         )
+        stderr_out = (result.stderr or "").strip()
     except FileNotFoundError:
         return None, "Audiveris non trovato (comando non in PATH)."
     except subprocess.TimeoutExpired:
@@ -54,13 +72,17 @@ def run_audiveris(image_path: str, output_dir: str):
     except Exception as e:
         return None, f"Errore: {e!s}"
 
-    # Audiveris writes .mxl or .xml in output_dir (same base name as input)
     base = Path(image_path).stem
-    for ext in (".mxl", ".xml"):
-        candidate = Path(output_dir) / (base + ext)
-        if candidate.exists():
-            return str(candidate), ""
-    return None, "Audiveris non ha prodotto file MusicXML."
+    music_xml_path = _find_music_xml(output_dir, base)
+    if music_xml_path:
+        return music_xml_path, ""
+    # Nessun file: messaggio utile, eventualmente con ultime righe di stderr
+    note = "Audiveris non ha prodotto file MusicXML."
+    if stderr_out:
+        last_lines = "\n".join(stderr_out.splitlines()[-3:]).strip()[:300]
+        if last_lines:
+            note += " Dettaglio: " + last_lines
+    return None, note
 
 
 @app.route("/omr", methods=["POST"])
