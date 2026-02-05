@@ -5,6 +5,7 @@ Then from the app use http://10.0.2.2:8080 (emulator) or http://<your-pc-ip>:808
 """
 import json
 import os
+import re
 import subprocess
 import tempfile
 import zipfile
@@ -23,6 +24,26 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
 # Heap JVM per Audiveris (override da env se serve, altrimenti limite sicuro per 512MB RAM)
 JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m")
+
+
+def _extract_xml_from_mxl(mxl_path: str) -> str | None:
+    """Estrae il contenuto XML da un file .mxl (ZIP). Supporta META-INF/container.xml e nomi .xml/.musicxml."""
+    with zipfile.ZipFile(mxl_path, "r") as z:
+        # Standard MXL: META-INF/container.xml indica il rootfile (es. .musicxml)
+        container_path = "META-INF/container.xml"
+        if container_path in z.namelist():
+            data = z.read(container_path).decode("utf-8", errors="replace")
+            match = re.search(r'rootfile\s+[^>]*full-path=["\']([^"\']+)["\']', data)
+            if match:
+                root_path = match.group(1).strip()
+                if root_path in z.namelist():
+                    return z.read(root_path).decode("utf-8", errors="replace")
+        # Fallback: primo file che termina con .xml o .musicxml
+        for name in z.namelist():
+            n = name.lower()
+            if n.endswith(".musicxml") or (n.endswith(".xml") and "container" not in n):
+                return z.read(name).decode("utf-8", errors="replace")
+    return None
 
 
 def _find_music_xml(output_dir: str, base: str) -> str | None:
@@ -106,12 +127,7 @@ def omr():
 
         if music_xml_path and os.path.exists(music_xml_path):
             if music_xml_path.lower().endswith(".mxl"):
-                with zipfile.ZipFile(music_xml_path, "r") as z:
-                    music_xml = None
-                    for name in z.namelist():
-                        if name.lower().endswith(".xml"):
-                            music_xml = z.read(name).decode("utf-8", errors="replace")
-                            break
+                music_xml = _extract_xml_from_mxl(music_xml_path)
             else:
                 with open(music_xml_path, encoding="utf-8", errors="replace") as f:
                     music_xml = f.read()
