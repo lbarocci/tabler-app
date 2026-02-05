@@ -46,5 +46,5 @@ RUN pip3 install --no-cache-dir -r requirements.txt gunicorn
 
 EXPOSE 8080
 
-# Timeout alto perché Audiveris può impiegare tempo
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8080", "--timeout", "120", "omr_server:app"]
+# Timeout alto perché Audiveris può impiegare tempo. Usa PORT per Render (default 8080 in locale).
+CMD gunicorn -w 1 -b "0.0.0.0:${PORT:-8080}" --timeout 120 omr_server:app
