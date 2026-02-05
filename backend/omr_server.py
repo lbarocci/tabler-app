@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from flask import Flask, request, jsonify
@@ -104,12 +105,20 @@ def omr():
         music_xml_path, error_note = run_audiveris(image_path, output_dir)
 
         if music_xml_path and os.path.exists(music_xml_path):
-            with open(music_xml_path, encoding="utf-8", errors="replace") as f:
-                music_xml = f.read()
-            return jsonify({"musicXml": music_xml})
-        else:
-            placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
-            return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
+            if music_xml_path.lower().endswith(".mxl"):
+                with zipfile.ZipFile(music_xml_path, "r") as z:
+                    music_xml = None
+                    for name in z.namelist():
+                        if name.lower().endswith(".xml"):
+                            music_xml = z.read(name).decode("utf-8", errors="replace")
+                            break
+            else:
+                with open(music_xml_path, encoding="utf-8", errors="replace") as f:
+                    music_xml = f.read()
+            if music_xml:
+                return jsonify({"musicXml": music_xml})
+        placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
+        return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
 
 
 @app.errorhandler(RequestEntityTooLarge)
