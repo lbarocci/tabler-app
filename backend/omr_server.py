@@ -27,7 +27,7 @@ JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx192m -XX:+UseSerialGC -XX:M
 
 
 def _extract_xml_from_mxl(mxl_path: str) -> str | None:
-    """Estrae il contenuto XML da un file .mxl (ZIP). Supporta META-INF/container.xml e nomi .xml/.musicxml."""
+    """Estrae il contenuto XML da un file .mxl (ZIP). Supporta container.xml, nomi .xml/.musicxml, o qualsiasi file con contenuto XML."""
     with zipfile.ZipFile(mxl_path, "r") as z:
         # Standard MXL: META-INF/container.xml indica il rootfile (es. .musicxml)
         container_path = "META-INF/container.xml"
@@ -38,11 +38,28 @@ def _extract_xml_from_mxl(mxl_path: str) -> str | None:
                 root_path = match.group(1).strip()
                 if root_path in z.namelist():
                     return z.read(root_path).decode("utf-8", errors="replace")
-        # Fallback: primo file che termina con .xml o .musicxml
+        # Fallback 1: primo file che termina con .xml o .musicxml (escluso container)
         for name in z.namelist():
+            if name.endswith("/"):
+                continue
             n = name.lower()
             if n.endswith(".musicxml") or (n.endswith(".xml") and "container" not in n):
                 return z.read(name).decode("utf-8", errors="replace")
+        # Fallback 2: qualsiasi file il cui contenuto sembri MusicXML (per output Audiveris atipici)
+        for name in z.namelist():
+            if name.endswith("/"):
+                continue
+            try:
+                raw = z.read(name)
+                text = raw.decode("utf-8", errors="replace").strip()
+                if not text or len(text) < 50:
+                    continue
+                head = text[:500].lower()
+                if (text.startswith("<?xml") or text.startswith("<score") or "<score " in head or
+                        "<score>" in head or "musicxml" in head or "<part-list" in head):
+                    return text
+            except Exception:
+                continue
     return None
 
 
