@@ -128,11 +128,25 @@ def omr():
         if music_xml_path and os.path.exists(music_xml_path):
             if music_xml_path.lower().endswith(".mxl"):
                 music_xml = _extract_xml_from_mxl(music_xml_path)
+                if not music_xml:
+                    error_note = (error_note or "Estrazione XML da .mxl fallita.") + " "
+                    try:
+                        with zipfile.ZipFile(music_xml_path, "r") as z:
+                            error_note += "[Contenuto .mxl: " + ", ".join(z.namelist()[:15]) + "]"
+                    except Exception:
+                        error_note += "[Impossibile aprire .mxl]"
             else:
                 with open(music_xml_path, encoding="utf-8", errors="replace") as f:
                     music_xml = f.read()
             if music_xml:
                 return jsonify({"musicXml": music_xml})
+        # Diagnostica: elenco file creati da Audiveris
+        try:
+            files_in_out = [str(p.relative_to(tmp)) for p in Path(tmp).rglob("*") if p.is_file()]
+            if files_in_out:
+                error_note = (error_note or "") + " [File in output: " + ", ".join(files_in_out[:20]) + "]"
+        except Exception:
+            pass
         placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
         return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
 
