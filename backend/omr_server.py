@@ -5,8 +5,10 @@ Then from the app use http://10.0.2.2:8080 (emulator) or http://<your-pc-ip>:808
 """
 import json
 import os
+import re
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from flask import Flask, request, jsonify
@@ -22,6 +24,32 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 AUDIVERIS_CMD = os.environ.get("AUDIVERIS_CMD", "audiveris")
 # Heap JVM per Audiveris (override da env se serve, altrimenti limite sicuro per 512MB RAM)
 JAVA_OPTS = os.environ.get("JAVA_TOOL_OPTIONS", "-Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m")
+
+
+def _extract_xml_from_mxl(mxl_path: str) -> str | None:
+    """Estrae il contenuto XML da un file .mxl (ZIP). Restituisce MusicXML pulito."""
+    with zipfile.ZipFile(mxl_path, "r") as z:
+        names = z.namelist()
+        # 1. Cerca input.xml (nome usato da Audiveris)
+        if "input.xml" in names:
+            return z.read("input.xml").decode("utf-8", errors="replace")
+        # 2. Fallback: file che terminano con .xml (escluso container.xml)
+        for name in names:
+            if name.endswith("/"):
+                continue
+            n = name.lower()
+            if n.endswith(".xml") and "container" not in n:
+                return z.read(name).decode("utf-8", errors="replace")
+        # 3. Fallback: rootfile da META-INF/container.xml
+        container_path = "META-INF/container.xml"
+        if container_path in names:
+            data = z.read(container_path).decode("utf-8", errors="replace")
+            match = re.search(r'rootfile\s+[^>]*full-path=["\']([^"\']+)["\']', data)
+            if match:
+                root_path = match.group(1).strip()
+                if root_path in names:
+                    return z.read(root_path).decode("utf-8", errors="replace")
+    return None
 
 
 def _find_music_xml(output_dir: str, base: str) -> str | None:
@@ -104,9 +132,13 @@ def omr():
         music_xml_path, error_note = run_audiveris(image_path, output_dir)
 
         if music_xml_path and os.path.exists(music_xml_path):
-            with open(music_xml_path, encoding="utf-8", errors="replace") as f:
-                music_xml = f.read()
-            return jsonify({"musicXml": music_xml})
+            if music_xml_path.lower().endswith(".mxl"):
+                music_xml = _extract_xml_from_mxl(music_xml_path)
+            else:
+                with open(music_xml_path, encoding="utf-8", errors="replace") as f:
+                    music_xml = f.read()
+            if music_xml:
+                return jsonify({"musicXml": music_xml})
         placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
         return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
 
