@@ -30,9 +30,10 @@ def _extract_xml_from_mxl(mxl_path: str) -> str | None:
     """Estrae il contenuto XML da un file .mxl (ZIP). Restituisce MusicXML pulito."""
     with zipfile.ZipFile(mxl_path, "r") as z:
         names = z.namelist()
-        # 1. Cerca input.xml (nome usato da Audiveris)
-        if "input.xml" in names:
-            return z.read("input.xml").decode("utf-8", errors="replace")
+        # 1. Cerca input.xml (nome usato da Audiveris, anche in sottocartella)
+        for name in names:
+            if name.lower().endswith("input.xml") or name.lower() == "input.xml":
+                return z.read(name).decode("utf-8", errors="replace")
         # 2. Fallback: file che terminano con .xml (escluso container.xml)
         for name in names:
             if name.endswith("/"):
@@ -49,6 +50,16 @@ def _extract_xml_from_mxl(mxl_path: str) -> str | None:
                 root_path = match.group(1).strip()
                 if root_path in names:
                     return z.read(root_path).decode("utf-8", errors="replace")
+        # 4. Fallback: primo file il cui contenuto sembri MusicXML (indipendente dal nome)
+        for name in names:
+            if name.endswith("/"):
+                continue
+            try:
+                text = z.read(name).decode("utf-8", errors="replace").strip()
+                if len(text) > 100 and ("<?xml" in text[:50] or text.startswith("<")) and ("<score" in text[:500] or "<part-list" in text[:500]):
+                    return text
+            except Exception:
+                continue
     return None
 
 
