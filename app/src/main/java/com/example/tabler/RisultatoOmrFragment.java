@@ -110,14 +110,14 @@ public class RisultatoOmrFragment extends Fragment {
                 .build();
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                String body = response.body() != null ? response.body().string() : "";
-                if (response.code() == 413 && body.contains("\"note\"")) {
-                    String note = extractJsonNote(body);
+                String errorBody = response.body() != null ? response.body().string() : "";
+                if (response.code() == 413 && errorBody.contains("\"note\"")) {
+                    String note = extractJsonNote(errorBody);
                     if (note != null && !note.isEmpty()) {
                         return getString(R.string.riconoscimento_fallito) + "\n\nFile troppo grande.\n\n" + note;
                     }
                 }
-                return getString(R.string.riconoscimento_fallito) + " (HTTP " + response.code() + ")\n\n" + body;
+                return getString(R.string.riconoscimento_fallito) + " (HTTP " + response.code() + ")\n\n" + errorBody;
             }
             if (response.body() == null) return getString(R.string.riconoscimento_completato);
             String bodyStr = response.body().string();
@@ -125,6 +125,9 @@ public class RisultatoOmrFragment extends Fragment {
             if (bodyStr.trim().startsWith("{")) {
                 // JSON: e.g. {"musicXml": "..."} or {"error": "..."}
                 if (bodyStr.contains("\"musicXml\"")) {
+                    boolean recognized = extractJsonBoolean(originalResponse, "recognized");
+                    boolean musicXmlExtracted = extractJsonBoolean(originalResponse, "musicXmlExtracted");
+                    String statusLine = "Riconosciuto: " + recognized + " | MusicXML estratto: " + musicXmlExtracted;
                     int start = bodyStr.indexOf("\"musicXml\"");
                     int valueStart = bodyStr.indexOf(":", start) + 1;
                     int quoteStart = bodyStr.indexOf("\"", valueStart) + 1;
@@ -139,6 +142,7 @@ public class RisultatoOmrFragment extends Fragment {
                             }
                             return msg;
                         }
+                        return statusLine + "\n\n" + getString(R.string.riconoscimento_completato) + "\n\n" + bodyStr;
                     }
                 } else if (bodyStr.contains("\"error\"")) {
                     return getString(R.string.riconoscimento_fallito) + "\n\n" + bodyStr;
@@ -163,6 +167,16 @@ public class RisultatoOmrFragment extends Fragment {
         return bodyStr.contains("OMR non disponibile")
                 || bodyStr.contains("<placeholder/>")
                 || (bodyStr.length() < 100 && bodyStr.contains("<?xml"));
+    }
+
+    /** Extract a boolean field from JSON, e.g. "recognized": true */
+    private boolean extractJsonBoolean(String json, String key) {
+        if (json == null || !json.contains("\"" + key + "\"")) return false;
+        int start = json.indexOf("\"" + key + "\"");
+        int valueStart = json.indexOf(":", start) + 1;
+        if (valueStart <= start) return false;
+        String rest = json.substring(valueStart).trim();
+        return rest.startsWith("true");
     }
 
     /** Extract the "note" field from JSON response, if present (backend explanation when OMR fails). */

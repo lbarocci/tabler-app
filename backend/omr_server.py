@@ -143,15 +143,22 @@ def omr():
         music_xml_path, error_note = run_audiveris(image_path, output_dir)
 
         if music_xml_path and os.path.exists(music_xml_path):
+            # File riconosciuto da Audiveris
             if music_xml_path.lower().endswith(".mxl"):
                 music_xml = _extract_xml_from_mxl(music_xml_path)
+                if music_xml:
+                    return jsonify({"musicXml": music_xml, "recognized": True, "musicXmlExtracted": True})
+                # Estrazione fallita: restituisci contenuto grezzo come prima (così l'app mostra "riconosciuto")
+                with open(music_xml_path, "rb") as f:
+                    music_xml = f.read().decode("utf-8", errors="replace")
+                return jsonify({"musicXml": music_xml, "recognized": True, "musicXmlExtracted": False,
+                               "note": "Riconosciuto. Estrazione MusicXML non riuscita - contenuto grezzo .mxl."})
             else:
                 with open(music_xml_path, encoding="utf-8", errors="replace") as f:
                     music_xml = f.read()
-            if music_xml:
-                return jsonify({"musicXml": music_xml})
+                return jsonify({"musicXml": music_xml, "recognized": True, "musicXmlExtracted": True})
         placeholder = '<?xml version="1.0"?>\n<!-- OMR non disponibile -->\n<placeholder/>'
-        return jsonify({"musicXml": placeholder, "note": error_note or "Il server non ha prodotto un risultato."})
+        return jsonify({"musicXml": placeholder, "recognized": False, "note": error_note or "Il server non ha prodotto un risultato."})
 
 
 @app.errorhandler(RequestEntityTooLarge)
